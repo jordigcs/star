@@ -1,0 +1,265 @@
+$primary-color: #00704A;
+$primary-light: #96e3c9;
+$star-color: #c79844;
+$white-text: #FFFBFE;
+$black-text: #1C1B1F;
+
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@200;400;700&display=swap');
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: $white-text;
+    color: #1C1B1F;
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+  'FILL' 0,
+  'wght' 400,
+  'GRAD' 0,
+  'opsz' 48
+}
+
+.star {
+    color: $star-color;
+    transform: rotate(-20deg);
+    animation-duration: 1s;
+    animation-name: star_rotate;
+    animation-timing-function: ease-in-out;
+    animation-delay: .5s;
+    margin-left:5px;
+}
+
+@keyframes star_rotate {
+    from {
+        transform: rotate(-20deg);
+    }
+    to {
+        transform: rotate(-380deg);
+    }
+}
+
+.title {
+    margin-bottom:0px;
+    color: $primary-color;
+    font-weight: bold;
+}
+
+.subtitle {
+    margin-top:2px;
+    font-size: 1.25rem;
+    color: transparentize($color: #000000, $amount: .4);
+}
+
+.container {
+    width: 100%;
+    height:90%;
+    display:flex;
+    flex-direction: column;
+    align-items: center;
+    position: absolute;
+    top:0;
+    left:0;
+    text-align: center;
+    padding-top: 40px;
+}
+
+.card_column {
+    display:flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.card {
+    background-color: $white-text;
+    width: 75%;
+    border-radius: 12px;
+    box-sizing: border-box;
+    padding: 16px 16px 24px 24px;
+    text-align: left;
+    margin-bottom:8px;
+}
+
+.elevated {
+    background-color: $white-text;
+    box-shadow: 0 2px 2px 0 rgba(0,0,0,0.14), 0 3px 1px -2px rgba(0,0,0,0.12), 0 1px 5px 0 rgba(0,0,0,0.20);
+}
+
+.filled {
+    background-color: $primary-color;
+    color: $white-text;
+}
+
+.filled * {
+    color: $white-text;
+}
+
+.priority_header {
+    background-color: $primary-color;
+    color: $white-text;
+    width:100%;
+    padding-top:.5rem;
+    padding-bottom:.5rem;
+    border-radius: 5px;
+    margin-bottom:15px;
+    margin-top:10px;
+    display:flex;
+    align-items:center;
+}
+
+.priority_title {
+    margin-left:1rem;
+    font-size: 1.7rem;
+    font-weight: bold;
+}
+
+@media (min-width: 85rem) {
+    .card {
+        width: 65rem;
+    }
+}
+
+.card-multioption{
+    width:100%;
+    display:flex;
+    margin-top:10px;
+    flex-direction: column;
+}
+
+.card-multioption_button {
+    margin-bottom:2px;
+    border-radius: 5px;
+    background-color: desaturate(darken($color:$white-text, $amount: 4), 100);
+    color:#212121;
+    width:100%;
+    box-sizing: border-box;
+    padding:20px;
+    display:flex;
+    align-items:center;
+    .icon {
+        font-size:2rem;
+        color: $primary-color;
+        margin-right: 1rem;
+    }
+}
+
+@mixin clickable() {
+    user-select: none;
+    cursor: pointer;
+}
+
+@mixin button_hover($color:$primary-color) {
+    @include clickable;
+    background-color: $color;
+    color:white;
+    transition: background-color .1s;
+    .icon {
+        color:white;
+        transition: background-color .1s;
+    }
+}
+
+@mixin button_click {
+    user-select: none;
+    cursor: pointer;
+    background-color: darken($color: $primary-color, $amount: 7);
+    color:white;
+    transition: background-color .1s;
+    .icon {
+        color:white;
+        transition: background-color .1s;
+    }
+}
+
+@mixin button {
+    background-color: $white-text;
+    color:$black-text;
+    user-select: none;
+    border-radius: 20px;
+    padding-left:24px;
+    padding-right:24px;
+    display:inline-flex;
+    height:40px;
+    justify-content: center;
+    align-items: center;
+    border:none;
+    font-weight: bold;
+}
+
+.button {
+    @include button;
+}
+
+.outlined {
+    background-color: transparent;
+    box-shadow: 0 0 0 1pt $white-text;
+    color:$white-text;
+}
+
+
+@media (hover: hover) {
+    .card-multioption_button:hover {
+        @include button_hover;
+    }
+
+    .card-multioption_button:active {
+        @include button_click;
+    }
+    .button:hover {
+        @include button_hover($color: $black-text);
+    }
+
+    .button:active {
+        @include button_click;
+    }
+}
+
+@media (hover: none) {
+    .card-multioption_button:active {
+        @include button_hover;
+    }
+    .button:active {
+        @include button_click;
+    }
+}
+
+.checkbox {
+    display:flex;
+    align-items: center;
+    margin-bottom:8px;
+}
+
+.checkbox:hover {
+    @include clickable;
+}
+
+
+.checkbox_radio {
+    margin-right:8px;
+    text-decoration: none !important;
+}
+
+.checkbox_striked {
+    text-decoration: line-through;
+}
+.timer {
+    width:100%;
+}
+
+.timer_label {
+    font-size:4rem;
+    font-weight: 200;
+    margin:0;
+}
+
+hr {
+    opacity: .40;
+    margin-bottom:8px;
+}
+
+.timer_bar {
+    width:100%;
+    background-color: $white-text;
+    border-radius:100%;
+}
