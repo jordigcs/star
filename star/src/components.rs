@@ -1,4 +1,44 @@
+use std::time::Duration;
+
 use yew::prelude::*;
+use wasm_timer::{Instant, Interval};
+use wasm_logger::*;
+use yew_hooks::use_interval;
+#[derive(Properties, PartialEq, Clone)]
+pub struct TimerData {
+    pub active:bool,
+    #[prop_or(1800)]
+    pub time_left:u64, // Seconds
+    #[prop_or_default]
+    pub callback:Callback<u16>,
+}
+
+impl TimerData {
+    pub fn format_time_left(time_left:u64) -> String {
+        let minutes = time_left / 60;
+        let seconds = time_left - (minutes * 60);
+        
+        format!("{:02}:{:02}", minutes, seconds)
+    }
+}
+
+#[function_component]
+pub fn Timer(data:&TimerData) -> Html {
+    let data = data.clone();
+    let last_time = use_state(|| Instant::now());
+    let time_left = use_state(|| data.time_left.to_owned());
+    Interval::new(Duration::from_secs(1));
+    let interval = Interval::new(1000, move || {
+        if (*last_time).elapsed().as_secs() >= 1 {
+            time_left.set(*time_left - (*last_time).elapsed().as_secs());
+            last_time.set(Instant::now());
+        }
+    });
+    html! {
+        <h2 class="timer_label">{ TimerData::format_time_left(*time_left) }</h2>
+    }
+}
+
 
 #[derive(PartialEq)]
 pub enum CsState {
@@ -24,14 +64,11 @@ pub fn CsCycle(data:&CsData) -> Html {
         let state = state.clone();
         Callback::from(move |_| state.set(CsState::Started))
     };
-    let stop_cycle = {
-        let state = state.clone();
-        Callback::from(move |_| destroy_card.emit(0))
-    };
+    let stop_cycle = Callback::from(move |_| destroy_card.emit(0));
     html! {
         <>
             <div class="timer">
-            <h2 class="timer_label">{ "30:00" }</h2>
+            <Timer active={ *state == CsState::Started }/>
             if *state == CsState::NotStarted {
                 <button class="button" onclick={start_cycle}>{ "Start Cycle" }</button>
             }
