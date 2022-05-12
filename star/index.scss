@@ -20,6 +20,10 @@ body {
   'opsz' 48
 }
 
+.star_color {
+    color: $star-color;
+}
+
 .star {
     color: $star-color;
     transform: rotate(-20deg);
@@ -81,17 +85,17 @@ body {
     margin-bottom:8px;
 }
 
+@mixin shadow {
+    box-shadow: 0 2px 2px 0 rgba(0,0,0,0.14), 0 3px 1px -2px rgba(0,0,0,0.12), 0 1px 5px 0 rgba(0,0,0,0.20);
+}
+
 .elevated {
     background-color: $white-text;
-    box-shadow: 0 2px 2px 0 rgba(0,0,0,0.14), 0 3px 1px -2px rgba(0,0,0,0.12), 0 1px 5px 0 rgba(0,0,0,0.20);
+    @include shadow;
 }
 
 .filled {
     background-color: $primary-color;
-    color: $white-text;
-}
-
-.filled * {
     color: $white-text;
 }
 
@@ -152,10 +156,10 @@ body {
 @mixin button_hover($color:$primary-color) {
     @include clickable;
     background-color: $color;
-    color:white;
+    color:$white-text;
     transition: background-color .1s;
     .icon {
-        color:white;
+        color:$white-text;
         transition: background-color .1s;
     }
 }
@@ -164,10 +168,10 @@ body {
     user-select: none;
     cursor: pointer;
     background-color: darken($color: $primary-color, $amount: 7);
-    color:white;
+    color:$white-text;
     transition: background-color .1s;
     .icon {
-        color:white;
+        color:$white-text;
         transition: background-color .1s;
     }
 }
@@ -189,6 +193,10 @@ body {
 
 .button {
     @include button;
+
+    .icon {
+        color: $primary-color;
+    }
 }
 
 .outlined {
@@ -251,6 +259,41 @@ body {
     font-size:4rem;
     font-weight: 200;
     margin:0;
+}
+
+.timer_expired {
+    color: $white-text;
+}
+
+input.timer_input {
+    outline: 0;
+    color: white;
+    width:75%;
+    font-size:4rem;
+    font-weight: 200;
+    margin:0;
+    display:block;
+    border: none;
+    border-bottom: 1px solid white;
+    margin-bottom: 8px;
+}
+
+input.timer_input, textarea {
+    background-color: transparent;
+}
+
+@keyframes timer_flash {
+    0% {
+        color:$white-text;
+    }
+
+    50% {
+        color: #d12443;
+    }
+
+    100% {
+        color:$white-text;
+    }
 }
 
 hr {
