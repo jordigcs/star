@@ -12,6 +12,7 @@ use crate::*;
 pub enum StarAction {
     AddCard(CardType),
     SetPriorityCard(CardType),
+    ClearPriorityCard(),
     DestroyCard(usize),
 }
 
@@ -36,7 +37,16 @@ impl Reducible for StarData {
         match action {
             StarAction::AddCard(card_type) => {
                 let mut cards = self.cards.clone();
-                cards.insert(1, CardData::new(card_type),);
+                let mut has_card = false;
+                for card in &cards {
+                    if card.card_type == card_type {
+                        has_card = true;
+                        break;
+                    }
+                }
+                if !has_card {
+                    cards.insert(1, CardData::new(card_type));
+                }
                 StarData {
                     priority_card: self.priority_card.clone(),
                     cards,
@@ -44,28 +54,24 @@ impl Reducible for StarData {
             },
             StarAction::SetPriorityCard(card_type) => {
                 StarData {
-                    priority_card: Some(CardData::new(card_type)),
+                    priority_card: Some(CardData::new_priority(card_type)),
+                    cards: self.cards.clone(),
+                }.into()
+            },
+            StarAction::ClearPriorityCard() => {
+                StarData {
+                    priority_card: None,
                     cards: self.cards.clone(),
                 }.into()
             },
             StarAction::DestroyCard(index) => {
                 let mut cards = self.cards.clone();
-                let mut priority_card = self.priority_card.clone();
-                let mut removed_card:bool = false;
-                if let Some(card) = &self.priority_card {
-                    if index == 0 {
-                        priority_card = None;
-                        removed_card = true;
-                    }
-                }
-                if !removed_card {
-                    if let Some(_) = cards.get(index) {
-                        cards.remove(index);
-                    }
+                if let Some(_) = cards.get(index) {
+                    cards.remove(index);
                 }
                 StarData {
-                    priority_card: priority_card,
-                    cards: cards,
+                    priority_card: self.priority_card.clone(),
+                    cards,
                 }.into()
             },
             _ => {

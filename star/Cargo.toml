@@ -19,5 +19,6 @@ version = "0.3"
 features = [
     "Window",
     "HtmlAudioElement",
-    "HtmlInputElement"
+    "HtmlInputElement",
+    "Storage",
 ]

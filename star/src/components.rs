@@ -1,5 +1,6 @@
 use std::{cell::Cell, rc::Rc};
 
+use serde::{Serialize, Deserialize};
 use web_sys::{window, HtmlAudioElement, HtmlElement, HtmlInputElement};
 use yew::{prelude::*, props};
 use gloo_timers::callback::Interval;
@@ -32,8 +33,9 @@ pub enum CsState {
     Flex
 }
 
-#[derive(Properties, PartialEq)]
+#[derive(Properties, PartialEq, Serialize, Deserialize)]
 pub struct CsData {
+    #[serde(skip)]
     pub destroy_card_callback:Callback<usize>,
     #[prop_or_default]
     pub cycle_started:bool,
@@ -66,8 +68,7 @@ pub fn CsCycle(data:&CsData) -> Html {
             state.set(CsState::Started)
         })
     };
-
-    let destroy_card = data.destroy_card_callback.clone();
+    
     let stop_cycle = {
         let state = state.clone();
         let timer_state = timer_state.clone();
@@ -106,7 +107,7 @@ pub fn CsCycle(data:&CsData) -> Html {
             <div class="timer">
             if *state == CsState::NotStarted {
                 <input ref={ start_time_input_ref } onchange={ start_time_changed } value={ (*start_time_input_str).clone() }class="timer_input" size="1" type="text" />
-                <button class="button" onclick={start_cycle}><span class="material-icons icon">{ "update" }</span>{ " Start Cycle" }</button>
+                <button class="button" onclick={start_cycle}><span class="material-symbols-outlined icon">{ "update" }</span>{ " Start Cycle" }</button>
             }
             else {
                 <Timer time_left={ timer_state.time_left.clone() } />
@@ -120,7 +121,7 @@ pub fn CsCycle(data:&CsData) -> Html {
                 <p><b>{ "Tasks" }</b></p>
                 <Checkbox text="Brew Coffee" default_value={true} />
                 <Checkbox text="Cafe Check"/>
-                <button class="button outlined" ><span class="material-icons">{ "add" }</span>{ " Schedule a new task" }</button>
+                <button class="button outlined" ><span class="material-symbols-outlined">{ "add" }</span>{ " Schedule a new task" }</button>
             }
         </>
     }
@@ -131,6 +132,7 @@ pub enum CardType {
     StartNewTask,
     Info,
     AboutUs,
+    Daydots,
     CsCycle
 }
 
@@ -139,29 +141,35 @@ pub enum CardType {
 pub struct CardData {
     #[prop_or(CardType::StartNewTask)]
     pub card_type:CardType,
+    #[prop_or_default]
+    pub is_priority:bool,
     pub index:usize,
     pub create_card:Callback<CardType>,
     pub set_priority_card:Callback<CardType>,
+    pub clear_priority:Callback<usize>,
     pub destroy_card:Callback<usize>,
 }
 
 impl CardData {
     pub fn new(card_type:CardType) -> Self {
-        CardData { card_type, index:0, create_card:Callback::noop(), set_priority_card:Callback::noop(), destroy_card:Callback::noop() }
+        CardData { card_type, is_priority: false, index:0, create_card:Callback::noop(), set_priority_card:Callback::noop(), clear_priority:Callback::noop(), destroy_card:Callback::noop() }
+    }
+
+    pub fn new_priority(card_type:CardType) -> Self {
+        let mut c = Self::new(card_type);
+        c.is_priority = true;
+        c
     }
 
     pub fn get_title(&self) -> String {
         match self.card_type {
             CardType::StartNewTask => "What can I help you with today?".to_string(),
+            CardType::CsCycle => "".to_string(),
             CardType::Info => "Information".to_string(),
             CardType::AboutUs => "About Star".to_string(),
-            CardType::CsCycle => "".to_string(),
+            CardType::Daydots => "Daydots".to_string(),
             _ => "Invalid Card".to_string(),
         }
-    }
-
-    pub fn is_priority(&self) -> bool {
-        return self.card_type == CardType::CsCycle
     }
 
     pub fn get_content(&self) -> Html {
@@ -179,14 +187,25 @@ impl CardData {
                     create_card.emit(CardType::AboutUs);
                     })
                 };
+                let create_daydot_card = {
+                    let set_priority_card = self.set_priority_card.clone();
+                    Callback::from(move |_| {
+                        set_priority_card.emit(CardType::Daydots);
+                    })
+                };
+
                 html! {
                     <div class="card-multioption">
                     <a class="card-multioption_button" onclick={ create_cs_cycle }>
-                    <span class="icon material-icons">{ "update" }</span>
+                    <span class="icon material-symbols-outlined">{ "update" }</span>
                     { "Start a new CS cycle" }
                     </a>
+                    <a class="card-multioption_button" onclick={ create_daydot_card }>
+                    <span class="icon material-symbols-outlined">{ "event" }</span>
+                    { "Daydot some backups" }
+                    </a>
                     <a class="card-multioption_button" onclick={ create_about_us }>
-                    <span class="icon material-icons">{ "account_circle" }</span>
+                    <span class="icon material-symbols-outlined">{ "account_circle" }</span>
                     { "About Us" }
                     </a>
                     </div>
@@ -201,6 +220,24 @@ impl CardData {
             CardType::CsCycle => {
                 html! { <CsCycle destroy_card_callback={self.destroy_card.clone()}/> }
             },
+            CardType::Daydots => {
+                html! {
+                    <div class="card-multioption">
+                    <a class="card-multioption_button" >
+                    <span class="icon material-symbols-outlined">{ "update" }</span>
+                    { "Start a new CS cycle" }
+                    </a>
+                    <a class="card-multioption_button" >
+                    <span class="icon material-symbols-outlined">{ "event" }</span>
+                    { "Daydot some backups" }
+                    </a>
+                    <a class="card-multioption_button" >
+                    <span class="icon material-symbols-outlined">{ "account_circle" }</span>
+                    { "About Us" }
+                    </a>
+                    </div>
+                }
+            }
             _ => {
                 html! {
                     <></>
@@ -212,14 +249,32 @@ impl CardData {
 
 #[function_component]
 pub fn Card(data:&CardData) -> Html {
+    let destroy_card = {
+        let index = data.index.clone();
+        let destroy_card = data.destroy_card.clone();
+        Callback::from(move |_| {
+            destroy_card.emit(index);
+        })
+    };
+    let clear_priority = {
+        let clear_priority = data.clear_priority.clone();
+        Callback::from(move |_| {
+            clear_priority.emit(0);
+        })
+    };
+
     html! {
-        if data.is_priority() {
+        if data.is_priority {
             <div class="card filled">
+                <a class="card_close_button" onclick={clear_priority}><span class="material-symbols-outlined">{ "close" }</span></a>
                 <h2 class="title">{ data.get_title() }</h2>
                 { data.get_content() }
             </div>
         } else {
         <div class="card elevated">
+            if data.card_type != CardType::StartNewTask {
+                <a class="card_close_button" onclick={destroy_card}><span class="material-symbols-outlined">{ "close" }</span></a>
+            }
             <h2 class="title">{ data.get_title() }</h2>
             { data.get_content() }
         </div>
@@ -250,12 +305,12 @@ pub fn Checkbox(data:&CheckboxData) -> Html {
     html! {
         <a class="checkbox" onclick={onclick}>
             if *state {
-                <span class=" material-icons checkbox_radio">
+                <span class=" material-symbols-outlined checkbox_radio">
                     { "check_circle" }
                 </span>
             }
             else {
-                <span class="material-icons checkbox_radio">
+                <span class="material-symbols-outlined checkbox_radio">
                     { "radio_button_unchecked" }
                 </span>
             }

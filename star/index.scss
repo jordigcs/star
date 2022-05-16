@@ -4,6 +4,53 @@ $star-color: #c79844;
 $white-text: #FFFBFE;
 $black-text: #1C1B1F;
 
+@mixin shadow {
+    box-shadow: 0 2px 2px 0 rgba(0,0,0,0.14), 0 3px 1px -2px rgba(0,0,0,0.12), 0 1px 5px 0 rgba(0,0,0,0.20);
+}
+
+@mixin clickable() {
+    user-select: none;
+    cursor: pointer;
+}
+
+@mixin button_hover($color:$primary-color) {
+    @include clickable;
+    background-color: $color;
+    color:$white-text;
+    transition: background-color .1s;
+    .icon {
+        color:$white-text;
+        transition: background-color .1s;
+    }
+}
+
+@mixin button_click {
+    user-select: none;
+    cursor: pointer;
+    background-color: darken($color: $primary-color, $amount: 7);
+    color:$white-text;
+    transition: background-color .1s;
+    .icon {
+        color:$white-text;
+        transition: background-color .1s;
+    }
+}
+
+@mixin button {
+    background-color: $white-text;
+    color:$black-text;
+    user-select: none;
+    border-radius: 20px;
+    padding-left:24px;
+    padding-right:24px;
+    display:inline-flex;
+    height:40px;
+    justify-content: center;
+    align-items: center;
+    border:none;
+    font-weight: bold;
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@200;400;700&display=swap');
 
 body {
@@ -85,9 +132,11 @@ body {
     margin-bottom:8px;
 }
 
-@mixin shadow {
-    box-shadow: 0 2px 2px 0 rgba(0,0,0,0.14), 0 3px 1px -2px rgba(0,0,0,0.12), 0 1px 5px 0 rgba(0,0,0,0.20);
+.card_close_button {
+    @include clickable;
+    float: right;
 }
+
 
 .elevated {
     background-color: $white-text;
@@ -146,49 +195,6 @@ body {
         color: $primary-color;
         margin-right: 1rem;
     }
-}
-
-@mixin clickable() {
-    user-select: none;
-    cursor: pointer;
-}
-
-@mixin button_hover($color:$primary-color) {
-    @include clickable;
-    background-color: $color;
-    color:$white-text;
-    transition: background-color .1s;
-    .icon {
-        color:$white-text;
-        transition: background-color .1s;
-    }
-}
-
-@mixin button_click {
-    user-select: none;
-    cursor: pointer;
-    background-color: darken($color: $primary-color, $amount: 7);
-    color:$white-text;
-    transition: background-color .1s;
-    .icon {
-        color:$white-text;
-        transition: background-color .1s;
-    }
-}
-
-@mixin button {
-    background-color: $white-text;
-    color:$black-text;
-    user-select: none;
-    border-radius: 20px;
-    padding-left:24px;
-    padding-right:24px;
-    display:inline-flex;
-    height:40px;
-    justify-content: center;
-    align-items: center;
-    border:none;
-    font-weight: bold;
 }
 
 .button {
