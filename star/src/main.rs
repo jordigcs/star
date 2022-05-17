@@ -6,6 +6,9 @@ use state::StarData;
 use state::StarAction;
 use components::*;
 
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
 #[function_component]
 fn Star() -> Html {
     let data = StarData::new();
@@ -17,12 +20,12 @@ fn Star() -> Html {
 
     let set_priority_card = {
         let state = state.clone();
-        Callback::from(move |card_type:CardType| state.dispatch(StarAction::SetPriorityCard(card_type)))
+        Callback::from(move |card_type:CardType| state.dispatch(StarAction::AddPriorityCard(card_type)))
     };
 
-    let clear_priority = {
+    let destroy_priority = {
         let state = state.clone();
-        Callback::<usize>::from(move |_| state.dispatch(StarAction::ClearPriorityCard()))
+        Callback::<usize>::from(move |index| state.dispatch(StarAction::DestroyPriorityCard(index)))
     };
 
     let destroy_card = {
@@ -31,25 +34,23 @@ fn Star() -> Html {
     };
 
     let cards = state.cards.clone();
+    let p_cards = state.priority_cards.clone();
     html! {
         <div class="container">
             <h1 class="title">{ "Star" }<span class="material-symbols-outlined star">{ "star" }</span></h1>
             <p class="subtitle">{ "Barista Helper" }</p>
             <div class="card_column">
             {
-                if let Some(card) = state.priority_card.clone() {
+                for p_cards.iter().enumerate().map(|(index, card)| {
                     html! {
-                        <Card card_type={ card.card_type } is_priority={true} index={0} create_card={create_card.clone()} set_priority_card={set_priority_card.clone()} clear_priority={clear_priority.clone()} destroy_card={destroy_card.clone()} />
+                        <Card card_type={ card.card_type } is_priority={true} index={index} create_card={create_card.clone()} add_priority_card={set_priority_card.clone()} destroy_priority={destroy_priority.clone()}  destroy_card={destroy_card.clone()} />
                     }
-                }
-                else {
-                    html! {}
-                }
+                })
             }
             {
                 for cards.iter().enumerate().map(|(index, card)| {
                     html! {
-                        <Card card_type={ card.card_type } index={index} create_card={create_card.clone()} set_priority_card={set_priority_card.clone()} clear_priority={clear_priority.clone()}  destroy_card={destroy_card.clone()} />
+                        <Card card_type={ card.card_type } index={index} create_card={create_card.clone()} add_priority_card={set_priority_card.clone()} destroy_priority={destroy_priority.clone()}  destroy_card={destroy_card.clone()} />
                     }
                 })
             }

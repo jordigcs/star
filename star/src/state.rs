@@ -1,6 +1,6 @@
-use std::{rc::Rc, collections::VecDeque, borrow::BorrowMut, cell::Cell};
+use std::{rc::Rc, collections::VecDeque, cell::Cell};
 
-use web_sys::{Window, window, HtmlAudioElement};
+use web_sys::{window, HtmlAudioElement};
 use gloo_timers::callback::Interval;
 use wasm_timer::Instant;
 use yew::prelude::*;
@@ -11,14 +11,14 @@ use crate::*;
 #[derive(Debug)]
 pub enum StarAction {
     AddCard(CardType),
-    SetPriorityCard(CardType),
-    ClearPriorityCard(),
+    AddPriorityCard(CardType),
+    DestroyPriorityCard(usize),
     DestroyCard(usize),
 }
 
 #[derive(Properties, PartialEq)]
 pub struct StarData {
-    pub priority_card:Option<CardData>,
+    pub priority_cards:VecDeque<CardData>,
     pub cards:VecDeque<CardData>,
 }
 
@@ -26,7 +26,7 @@ impl StarData {
     pub fn new() -> Self {
         let cards = [
             CardData::new(CardType::StartNewTask)];
-        StarData { priority_card:None, cards:VecDeque::from(cards) }
+        StarData { priority_cards:VecDeque::new(), cards:VecDeque::from(cards) }
     }
 }
 
@@ -45,22 +45,40 @@ impl Reducible for StarData {
                     }
                 }
                 if !has_card {
-                    cards.insert(1, CardData::new(card_type));
+                    cards.push_back(CardData::new(card_type));
                 }
                 StarData {
-                    priority_card: self.priority_card.clone(),
+                    priority_cards: self.priority_cards.clone(),
                     cards,
                 }.into()
             },
-            StarAction::SetPriorityCard(card_type) => {
+            StarAction::AddPriorityCard(card_type) => {
+                let mut priority_cards = self.priority_cards.clone();
+                let mut has_card = false;
+                for card in &priority_cards {
+                    if card.card_type == card_type {
+                        has_card = true;
+                        break;
+                    }
+                }
+                if !has_card {
+                    priority_cards.push_front(CardData::new(card_type));
+                }
+                if let Some(window) = window() {
+                    window.scroll_with_x_and_y(0.0, 0.0);
+                }
                 StarData {
-                    priority_card: Some(CardData::new_priority(card_type)),
+                    priority_cards,
                     cards: self.cards.clone(),
                 }.into()
             },
-            StarAction::ClearPriorityCard() => {
+            StarAction::DestroyPriorityCard(index) => {
+                let mut priority_cards = self.priority_cards.clone();
+                if let Some(_) = priority_cards.get(index) {
+                    priority_cards.remove(index);
+                }
                 StarData {
-                    priority_card: None,
+                    priority_cards,
                     cards: self.cards.clone(),
                 }.into()
             },
@@ -70,13 +88,13 @@ impl Reducible for StarData {
                     cards.remove(index);
                 }
                 StarData {
-                    priority_card: self.priority_card.clone(),
+                    priority_cards: self.priority_cards.clone(),
                     cards,
                 }.into()
             },
             _ => {
                 StarData {
-                    priority_card: self.priority_card.clone(),
+                    priority_cards: self.priority_cards.clone(),
                     cards: self.cards.clone(),
                 }.into()
             }

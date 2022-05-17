@@ -1,11 +1,12 @@
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell};
 
+use chrono::{Date, Local, Datelike, Weekday, Duration, Timelike};
 use serde::{Serialize, Deserialize};
-use web_sys::{window, HtmlAudioElement, HtmlElement, HtmlInputElement};
-use yew::{prelude::*, props};
-use gloo_timers::callback::Interval;
-use wasm_logger::*;
-use wasm_timer::Instant;
+use web_sys::{HtmlAudioElement, HtmlInputElement};
+use yew::{prelude::*};
+
+
+
 use crate::state::{TimerData, TimerAction};
 
 #[function_component]
@@ -43,8 +44,29 @@ pub struct CsData {
     pub current_cycle_length:u16,
 }
 
+pub enum CoffeesToBrew {
+    Pike,
+    Blonde,
+    Dark
+}
+
 #[function_component]
-pub fn CsCycle(data:&CsData) -> Html {
+pub fn CsCycle(_data:&CsData) -> Html {
+    let state = use_state(|| CsState::NotStarted);
+    
+    let coffees_to_cycle = use_state(|| {
+        if chrono::Local::now().hour() < 11 {
+            vec!(CoffeesToBrew::Blonde, CoffeesToBrew::Dark)
+        }
+        else {
+            Vec::new()
+        }
+    });
+
+    //Timer initialization
+    let start_time_value = use_state(|| 1800);
+    let start_time_input_str = use_state(|| TimerData::format_time_left(*start_time_value));
+    let start_time_input_ref = use_node_ref();
     let timer_data = TimerData {
         time_left:use_state(|| Cell::new(2)),
         running: false,
@@ -52,13 +74,9 @@ pub fn CsCycle(data:&CsData) -> Html {
         timer_interval_id: -1,
         timer_sound: HtmlAudioElement::new_with_src("src").expect("Could not load timer sound.")
     };
-    let state = use_state(|| CsState::NotStarted);
     let timer_state = use_reducer(|| timer_data);
-    
-    let start_time_value = use_state(|| 1800);
-    let start_time_input_str = use_state(|| TimerData::format_time_left(*start_time_value));
-    let start_time_input_ref = use_node_ref();
 
+    // Callbacks
     let start_cycle = {
         let state = state.clone();
         let timer_state = timer_state.clone();
@@ -79,7 +97,7 @@ pub fn CsCycle(data:&CsData) -> Html {
     };
 
     let start_time_changed = {
-        let timer_state = timer_state.clone();
+        let _timer_state = timer_state.clone();
         let start_time_input_ref = start_time_input_ref.clone();
         let start_time_value = start_time_value.clone();
         let start_time_input_str = start_time_input_str.clone();
@@ -106,7 +124,7 @@ pub fn CsCycle(data:&CsData) -> Html {
         <>
             <div class="timer">
             if *state == CsState::NotStarted {
-                <input ref={ start_time_input_ref } onchange={ start_time_changed } value={ (*start_time_input_str).clone() }class="timer_input" size="1" type="text" />
+                <input ref={ start_time_input_ref } onchange={ start_time_changed } value={ (*start_time_input_str).clone() } class="timer_input" size="1" type="text" />
                 <button class="button" onclick={start_cycle}><span class="material-symbols-outlined icon">{ "update" }</span>{ " Start Cycle" }</button>
             }
             else {
@@ -123,6 +141,196 @@ pub fn CsCycle(data:&CsData) -> Html {
                 <Checkbox text="Cafe Check"/>
                 <button class="button outlined" ><span class="material-symbols-outlined">{ "add" }</span>{ " Schedule a new task" }</button>
             }
+        </>
+    }
+}
+
+#[derive(Properties, PartialEq)]
+pub struct DaydotData {
+    date:Date<Local>
+}
+
+#[function_component]
+pub fn Daydot(data:&DaydotData) -> Html {
+    let weekday = data.date.weekday();
+    let mut weekday_str:String = String::new();
+    match weekday {
+        Weekday::Mon => {
+            weekday_str.push_str("Monday");
+        },
+        Weekday::Tue => {
+            weekday_str.push_str("Tuesday");
+        },
+        Weekday::Wed => {
+            weekday_str.push_str("Wednesday");
+        },
+        Weekday::Thu => {
+            weekday_str.push_str("Thursday");
+        }
+        Weekday::Fri => {
+            weekday_str.push_str("Friday");
+        }
+        Weekday::Sat => {
+            weekday_str.push_str("Saturday");
+        }
+        Weekday::Sun => {
+            weekday_str.push_str("Sunday");
+        }
+    }
+
+    let date = data.date.month().to_string() + "/" + &data.date.day().to_string();
+    html! {
+        <div class="daydot">
+        <div class={ "daydot_day ".to_owned() + &weekday_str.to_lowercase() }>
+        <b><p>{ weekday_str }</p></b>
+        </div>
+        <p>{ date }</p>
+        </div>
+    }
+}
+
+#[derive(PartialEq, Clone)]
+pub struct DaydotProduct(String, u8);
+
+#[derive(Properties, PartialEq)]
+pub struct DaydotCardData {
+    pub hb_products:Vec<DaydotProduct>,
+    pub cbs_products:Vec<DaydotProduct>
+}
+
+#[function_component]
+pub fn Daydots(data:&DaydotCardData) -> Html {
+    let today = Local::today();
+    let cbs_dates = use_state(|| {
+        let mut c = Vec::new();
+        for product in &data.cbs_products {
+            c.push(
+                html! {
+                    <div class="date_card">
+                    <h3>{ product.0.clone() }</h3>
+                    <Daydot date={ today.clone() + Duration::days(product.1.into())} />
+                    </div>
+                }
+            );
+        }
+        c
+    });
+    let hb_dates = use_state(|| {
+        let mut h = Vec::new();
+        for product in &data.hb_products {
+            h.push(
+                html! {
+                    <div class="date_card">
+                    <h3>{ product.0.clone() }</h3>
+                    <Daydot date={ today.clone() + Duration::days(product.1.into())} />
+                    </div>
+                }
+            );
+        }
+        h
+    });
+
+    let hb_dates_shown = use_state(|| false);
+    let cbs_dates_shown = use_state(|| false);
+    
+    let toggle_hb_dates_shown = {
+        let hb_dates_shown = hb_dates_shown.clone();
+        Callback::<MouseEvent>::from(move |_| {
+            hb_dates_shown.set(!(*hb_dates_shown));
+        })
+    };
+
+    let toggle_cbs_dates_shown = {
+        let cbs_dates_shown = cbs_dates_shown.clone();
+        Callback::<MouseEvent>::from(move |_| {
+            cbs_dates_shown.set(!(*cbs_dates_shown));
+        })
+    };
+
+    let search_results = use_state(|| Vec::<Html>::new());
+    let search_results_ref = use_node_ref();
+    let search_results_changed = {
+        let search_results_ref = search_results_ref.clone();
+        let search_results = search_results.clone();
+        let h = data.hb_products.clone();
+        let c = data.cbs_products.clone();
+        Callback::<InputEvent>::from(move |_| {
+            let search = search_results_ref.cast::<HtmlInputElement>().expect("Search not found.");
+            if search.value().len() > 0 {
+                let mut joined_vec = h.clone();
+                joined_vec.append(&mut c.clone());
+
+                let mut results = Vec::<DaydotProduct>::new();
+
+                for p in joined_vec {
+                    let p_name = p.0.to_lowercase();
+                    let split = p_name.split(" ");
+                    for name in split {
+                        if name.starts_with(&search.value().to_lowercase()) {
+                            let mut product_already_exists:bool = false;
+                            for i in &results {
+                                if i.0 == p.0 {
+                                    product_already_exists = true;
+                                    break;
+                                }
+                            }
+                            if product_already_exists {
+                                continue;
+                            }
+                            results.push(p);
+                            break;
+                        }
+                    }
+                }
+
+                let mut h = Vec::new();
+                for product in results {
+                    h.push(
+                        html! {
+                            <div class="date_card">
+                            <h3>{ product.0.clone() }</h3>
+                            <Daydot date={ today.clone() + Duration::days(product.1.into())} />
+                            </div>
+                        }
+                    );
+                }
+                search_results.set(h);
+            }
+            else {
+                search_results.set(Vec::new());
+            }
+    })
+    };
+    html! {
+        <>
+        <h2 class="title_white">{ "Daydots" }</h2>
+        <p><b>{ "Today is "}</b><Daydot date={chrono::Local::today()} /></p>
+        <hr />
+        <span class="material-symbols-outlined" style="font-size:1.5rem; display:inline;">{ "search" }</span><input ref={search_results_ref} oninput={search_results_changed} class="text_input" size="1" type="text" placeholder="Search" />
+        if (*search_results).len() > 0 {
+            <h3 class="" >{"Search Results"}</h3>
+            <div class="date_grid">
+            {
+                (*search_results).clone()
+            }
+            </div>
+        }
+        <h2 class="clickable" onclick={toggle_hb_dates_shown} >{"Hot Bar "} <span class="material-symbols-outlined">{ "coffee" }</span><span class="material-symbols-outlined">{ if *hb_dates_shown { "expand_less" } else { "expand_more" } }</span></h2>
+        if *hb_dates_shown {
+            <div class="date_grid">
+            {
+                (*hb_dates).clone()
+            }
+            </div>
+        }
+        <h2 class="clickable" onclick={toggle_cbs_dates_shown} >{"Cold Bar "} <span class="material-symbols-outlined">{ "blender" }</span><span class="material-symbols-outlined">{ if *cbs_dates_shown { "expand_less" } else { "expand_more" } }</span></h2>
+        if *cbs_dates_shown {
+            <div class="date_grid">
+            {
+                (*cbs_dates).clone()
+            }
+            </div>
+        }
         </>
     }
 }
@@ -145,14 +353,14 @@ pub struct CardData {
     pub is_priority:bool,
     pub index:usize,
     pub create_card:Callback<CardType>,
-    pub set_priority_card:Callback<CardType>,
-    pub clear_priority:Callback<usize>,
+    pub add_priority_card:Callback<CardType>,
+    pub destroy_priority:Callback<usize>,
     pub destroy_card:Callback<usize>,
 }
 
 impl CardData {
     pub fn new(card_type:CardType) -> Self {
-        CardData { card_type, is_priority: false, index:0, create_card:Callback::noop(), set_priority_card:Callback::noop(), clear_priority:Callback::noop(), destroy_card:Callback::noop() }
+        CardData { card_type, is_priority: false, index:0, create_card:Callback::noop(), add_priority_card:Callback::noop(), destroy_priority:Callback::noop(), destroy_card:Callback::noop() }
     }
 
     pub fn new_priority(card_type:CardType) -> Self {
@@ -164,10 +372,10 @@ impl CardData {
     pub fn get_title(&self) -> String {
         match self.card_type {
             CardType::StartNewTask => "What can I help you with today?".to_string(),
-            CardType::CsCycle => "".to_string(),
+            CardType::CsCycle => String::new(),
             CardType::Info => "Information".to_string(),
             CardType::AboutUs => "About Star".to_string(),
-            CardType::Daydots => "Daydots".to_string(),
+            CardType::Daydots => String::new(),
             _ => "Invalid Card".to_string(),
         }
     }
@@ -176,7 +384,7 @@ impl CardData {
         match self.card_type {
             CardType::StartNewTask => {
                 let create_cs_cycle = {
-                    let set_priority_card = self.set_priority_card.clone();
+                    let set_priority_card = self.add_priority_card.clone();
                     Callback::from(move |_| {
                         set_priority_card.emit(CardType::CsCycle);
                     })
@@ -188,7 +396,7 @@ impl CardData {
                     })
                 };
                 let create_daydot_card = {
-                    let set_priority_card = self.set_priority_card.clone();
+                    let set_priority_card = self.add_priority_card.clone();
                     Callback::from(move |_| {
                         set_priority_card.emit(CardType::Daydots);
                     })
@@ -221,21 +429,27 @@ impl CardData {
                 html! { <CsCycle destroy_card_callback={self.destroy_card.clone()}/> }
             },
             CardType::Daydots => {
+                let hb_products = vec!(
+                    DaydotProduct(String::from("Mocha"), 1 ),
+                    DaydotProduct(String::from("White Mocha"), 14),
+                    DaydotProduct(String::from("Chai"), 1 ),
+                    DaydotProduct(String::from("Whipped Cream"), 1 ),
+                );
+                let cb_products = vec!(
+                    DaydotProduct(String::from("Refresher Base"), 3),
+                    DaydotProduct(String::from("Refresher Fruit Inclusions"), 5),
+                    DaydotProduct(String::from("Lemonade"), 2),
+                    DaydotProduct(String::from("Vanilla Sweet Cream"), 2 ),
+                    DaydotProduct(String::from("Whipped Cream"), 1 ),
+                    DaydotProduct(String::from("Frap Roast"), 2 ),
+                    DaydotProduct(String::from("Frap Chips"), 7),
+                    DaydotProduct(String::from("Mocha"), 1),
+                    DaydotProduct(String::from("Cold Brew"), 7),
+                    DaydotProduct(String::from("Powder Inclusions"), 7),
+                    DaydotProduct(String::from("Caramel Drizzle"), 14),
+                );
                 html! {
-                    <div class="card-multioption">
-                    <a class="card-multioption_button" >
-                    <span class="icon material-symbols-outlined">{ "update" }</span>
-                    { "Start a new CS cycle" }
-                    </a>
-                    <a class="card-multioption_button" >
-                    <span class="icon material-symbols-outlined">{ "event" }</span>
-                    { "Daydot some backups" }
-                    </a>
-                    <a class="card-multioption_button" >
-                    <span class="icon material-symbols-outlined">{ "account_circle" }</span>
-                    { "About Us" }
-                    </a>
-                    </div>
+                    <Daydots hb_products={hb_products} cbs_products={cb_products} />
                 }
             }
             _ => {
@@ -256,17 +470,18 @@ pub fn Card(data:&CardData) -> Html {
             destroy_card.emit(index);
         })
     };
-    let clear_priority = {
-        let clear_priority = data.clear_priority.clone();
+    let destroy_priority = {
+        let index = data.index.clone();
+        let destroy_priority = data.destroy_priority.clone();
         Callback::from(move |_| {
-            clear_priority.emit(0);
+            destroy_priority.emit(index);
         })
     };
 
     html! {
         if data.is_priority {
             <div class="card filled">
-                <a class="card_close_button" onclick={clear_priority}><span class="material-symbols-outlined">{ "close" }</span></a>
+                <a class="card_close_button" onclick={destroy_priority}><span class="material-symbols-outlined">{ "close" }</span></a>
                 <h2 class="title">{ data.get_title() }</h2>
                 { data.get_content() }
             </div>
