@@ -44,24 +44,64 @@ pub struct CsData {
     pub current_cycle_length:u16,
 }
 
-pub enum CoffeesToBrew {
+#[derive(PartialEq)]
+pub enum CoffeeRoast {
     Pike,
     Blonde,
     Dark
 }
 
-#[function_component]
-pub fn CsCycle(_data:&CsData) -> Html {
-    let state = use_state(|| CsState::NotStarted);
-    
-    let coffees_to_cycle = use_state(|| {
+impl CoffeeRoast {
+    pub fn to_string(&self) -> String {
+        match self {
+            CoffeeRoast::Blonde => {
+                String::from("Blonde")
+            },
+            CoffeeRoast::Dark => {
+                String::from("Dark")
+            }
+            CoffeeRoast::Pike => {
+                String::from("Pike")
+            },
+        }
+    }
+}
+
+pub struct CoffeesToBrew(CoffeeRoast, Option<CoffeeRoast>);
+
+impl CoffeesToBrew {
+    pub fn to_string(&self) -> String {
+        let mut val = self.0.to_string() + ", ";
+        if let Some(roast) = &self.1 {
+            val.push_str(&roast.to_string());
+        }
+        val
+    }
+
+    pub fn get_next(&self) -> CoffeesToBrew {
+        let mut c = CoffeesToBrew(CoffeeRoast::Pike, None);
         if chrono::Local::now().hour() < 11 {
-            vec!(CoffeesToBrew::Blonde, CoffeesToBrew::Dark)
+            if let Some(roast) = &self.1 {
+                match roast {
+                    CoffeeRoast::Blonde => {
+                        c.1 = Some(CoffeeRoast::Dark);
+                    },
+                    _ => {
+                        c.1 = Some(CoffeeRoast::Blonde);
+                    }
+                }
+            }
         }
-        else {
-            Vec::new()
-        }
-    });
+        c
+    }
+}
+
+#[function_component]
+pub fn CsCycle() -> Html {
+    let state = use_state(|| CsState::NotStarted);
+
+    let last_brewed = use_state(|| CoffeesToBrew(CoffeeRoast::Pike, 
+        if chrono::Local::now().hour() < 11 { Some(CoffeeRoast::Blonde) } else { None }));
 
     //Timer initialization
     let start_time_value = use_state(|| 1800);
@@ -81,8 +121,10 @@ pub fn CsCycle(_data:&CsData) -> Html {
         let state = state.clone();
         let timer_state = timer_state.clone();
         let start_time_value = start_time_value.clone();
+        let last_brewed = last_brewed.clone();
         Callback::from(move |_| {
             timer_state.dispatch(TimerAction::Start(*start_time_value));
+            last_brewed.set((*last_brewed).get_next());
             state.set(CsState::Started)
         })
     };
@@ -119,7 +161,7 @@ pub fn CsCycle(_data:&CsData) -> Html {
             }
         })
     };
-
+    let next_to_brew = (*last_brewed).get_next();
     html! {
         <>
             <div class="timer">
@@ -135,11 +177,31 @@ pub fn CsCycle(_data:&CsData) -> Html {
             <hr/>
             if *state == CsState::NotStarted {
                 <p>{ "The CS cycle begins with brewing coffee. Brew some coffee and click " }<b>{ "Start Cycle" }</b>{ " to begin." }</p>
+                if next_to_brew.1 != None {
+                    <h2>{ "Next coffee to brew:" }<br/>{
+                        next_to_brew.0.to_string() +
+                        &(if let Some(p) = next_to_brew.1 {
+                            " & ".to_owned() + &p.to_string()
+                        } else {
+                            "".to_owned()
+                        })
+                    }</h2>
+                }
             } else {
                 <p><b>{ "Tasks" }</b></p>
                 <Checkbox text="Brew Coffee" default_value={true} />
                 <Checkbox text="Cafe Check"/>
                 <button class="button outlined" ><span class="material-symbols-outlined">{ "add" }</span>{ " Schedule a new task" }</button>
+                if next_to_brew.1 != None {
+                    <h3>{ "Last coffee brewed:" }<br/>{
+                        (*last_brewed).0.to_string() +
+                        &(if let Some(p) = &(*last_brewed).1 {
+                            " & ".to_owned() + &p.to_string()
+                        } else {
+                            "".to_owned()
+                        })
+                    }</h3>
+                }
             }
         </>
     }
@@ -305,7 +367,6 @@ pub fn Daydots(data:&DaydotCardData) -> Html {
         <>
         <h2 class="title_white">{ "Daydots" }</h2>
         <p><b>{ "Today is "}</b><Daydot date={chrono::Local::today()} /></p>
-        <hr />
         <span class="material-symbols-outlined" style="font-size:1.5rem; display:inline;">{ "search" }</span><input ref={search_results_ref} oninput={search_results_changed} class="text_input" size="1" type="text" placeholder="Search" />
         if (*search_results).len() > 0 {
             <h3 class="" >{"Search Results"}</h3>
@@ -314,6 +375,7 @@ pub fn Daydots(data:&DaydotCardData) -> Html {
                 (*search_results).clone()
             }
             </div>
+            <hr />
         }
         <h2 class="clickable" onclick={toggle_hb_dates_shown} >{"Hot Bar "} <span class="material-symbols-outlined">{ "coffee" }</span><span class="material-symbols-outlined">{ if *hb_dates_shown { "expand_less" } else { "expand_more" } }</span></h2>
         if *hb_dates_shown {
@@ -426,7 +488,7 @@ impl CardData {
                 <p>{ "Made mainly as a side project, Star is a tool to help Starbucks baristas with their daily tasks. Made by a barista, for baristas. Star is dedicated to improving the partner experience."}</p>
             },
             CardType::CsCycle => {
-                html! { <CsCycle destroy_card_callback={self.destroy_card.clone()}/> }
+                html! { <CsCycle/> }
             },
             CardType::Daydots => {
                 let hb_products = vec!(
