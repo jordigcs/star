@@ -177,15 +177,17 @@ pub fn CsCycle() -> Html {
             <hr/>
             if *state == CsState::NotStarted {
                 <p>{ "The CS cycle begins with brewing coffee. Brew some coffee and click " }<b>{ "Start Cycle" }</b>{ " to begin." }</p>
+                <hr/>
                 if next_to_brew.1 != None {
-                    <h2>{ "Next coffee to brew:" }<br/>{
+                    <p><b>{ "Next coffee to brew:" }</b><br/>{
                         next_to_brew.0.to_string() +
                         &(if let Some(p) = next_to_brew.1 {
                             " & ".to_owned() + &p.to_string()
                         } else {
                             "".to_owned()
                         })
-                    }</h2>
+                        }
+                    </p>
                 }
             } else {
                 <p><b>{ "Tasks" }</b></p>
@@ -193,14 +195,15 @@ pub fn CsCycle() -> Html {
                 <Checkbox text="Cafe Check"/>
                 <button class="button outlined" ><span class="material-symbols-outlined">{ "add" }</span>{ " Schedule a new task" }</button>
                 if next_to_brew.1 != None {
-                    <h3>{ "Last coffee brewed:" }<br/>{
+                    <hr/>
+                    <p><b>{ "Last coffee brewed:" }</b><br/>{
                         (*last_brewed).0.to_string() +
                         &(if let Some(p) = &(*last_brewed).1 {
                             " & ".to_owned() + &p.to_string()
                         } else {
                             "".to_owned()
                         })
-                    }</h3>
+                    }</p>
                 }
             }
         </>
