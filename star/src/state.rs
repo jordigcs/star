@@ -1,5 +1,6 @@
 use std::{rc::Rc, collections::VecDeque, cell::Cell};
 
+use serde::Serialize;
 use web_sys::{window, HtmlAudioElement};
 use gloo_timers::callback::Interval;
 use wasm_timer::Instant;
@@ -118,7 +119,6 @@ pub struct TimerData {
     pub callback:Callback<u16>,
     #[prop_or_default]
     pub timer_interval_id:i32,
-    #[prop_or(HtmlAudioElement::new().unwrap())]
     pub timer_sound:HtmlAudioElement,
 }
 

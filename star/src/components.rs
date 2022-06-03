@@ -2,17 +2,17 @@ use std::{cell::Cell};
 
 use chrono::{Date, Local, Datelike, Weekday, Duration, Timelike};
 use serde::{Serialize, Deserialize};
-use web_sys::{HtmlAudioElement, HtmlInputElement};
+use web_sys::{HtmlAudioElement, HtmlInputElement, Storage};
 use yew::{prelude::*};
 
 
 
-use crate::state::{TimerData, TimerAction};
+use crate::state::{ TimerData, TimerAction };
 
 #[function_component]
 pub fn Timer(data:&TimerData) -> Html {
     log::warn!("Render");
-    if data.time_left.get() <= 0 {
+    if data.time_left.get() < 0 {
         if data.timer_sound.paused() {
             data.timer_sound.play();
         }
@@ -98,7 +98,9 @@ impl CoffeesToBrew {
 
 #[function_component]
 pub fn CsCycle() -> Html {
-    let state = use_state(|| CsState::NotStarted);
+    let state = use_state(|| {   
+        CsState::NotStarted
+    });
 
     let last_brewed = use_state(|| CoffeesToBrew(CoffeeRoast::Pike, 
         if chrono::Local::now().hour() < 11 { Some(CoffeeRoast::Blonde) } else { None }));
@@ -112,7 +114,7 @@ pub fn CsCycle() -> Html {
         running: false,
         callback:Callback::noop(),
         timer_interval_id: -1,
-        timer_sound: HtmlAudioElement::new_with_src("src").expect("Could not load timer sound.")
+        timer_sound: HtmlAudioElement::new_with_src("timer_expired.wav").expect("Could not load timer sound."),
     };
     let timer_state = use_reducer(|| timer_data);
 
@@ -170,7 +172,7 @@ pub fn CsCycle() -> Html {
                 <button class="button" onclick={start_cycle}><span class="material-symbols-outlined icon">{ "update" }</span>{ " Start Cycle" }</button>
             }
             else {
-                <Timer time_left={ timer_state.time_left.clone() } />
+                <Timer time_left={ timer_state.time_left.clone() } timer_sound={ timer_state.timer_sound.clone() } />
                 <button class="button outlined" onclick={stop_cycle}>{ "Stop Cycle" }</button>
             }
             </div>
@@ -193,7 +195,9 @@ pub fn CsCycle() -> Html {
                 <p><b>{ "Tasks" }</b></p>
                 <Checkbox text="Brew Coffee" default_value={true} />
                 <Checkbox text="Cafe Check"/>
-                <button class="button outlined" ><span class="material-symbols-outlined">{ "add" }</span>{ " Schedule a new task" }</button>
+                <Checkbox text="Restock"/>
+                <Checkbox text="Cycle Task"/>
+                //<button class="button outlined" ><span class="material-symbols-outlined">{ "add" }</span>{ " Schedule a new task" }</button>
                 if next_to_brew.1 != None {
                     <hr/>
                     <p><b>{ "Last coffee brewed:" }</b><br/>{
@@ -439,7 +443,6 @@ impl CardData {
             CardType::StartNewTask => "What can I help you with today?".to_string(),
             CardType::CsCycle => String::new(),
             CardType::Info => "Information".to_string(),
-            CardType::AboutUs => "About Star".to_string(),
             CardType::Daydots => String::new(),
             _ => "Invalid Card".to_string(),
         }
@@ -452,12 +455,6 @@ impl CardData {
                     let set_priority_card = self.add_priority_card.clone();
                     Callback::from(move |_| {
                         set_priority_card.emit(CardType::CsCycle);
-                    })
-                };
-                let create_about_us = {
-                    let create_card = self.create_card.clone();
-                    Callback::from(move |_| {
-                    create_card.emit(CardType::AboutUs);
                     })
                 };
                 let create_daydot_card = {
@@ -477,10 +474,6 @@ impl CardData {
                     <span class="icon material-symbols-outlined">{ "event" }</span>
                     { "Daydot some backups" }
                     </a>
-                    <a class="card-multioption_button" onclick={ create_about_us }>
-                    <span class="icon material-symbols-outlined">{ "account_circle" }</span>
-                    { "About Us" }
-                    </a>
                     </div>
                 }
             },
@@ -498,7 +491,7 @@ impl CardData {
                     DaydotProduct(String::from("Mocha"), 1 ),
                     DaydotProduct(String::from("White Mocha"), 14),
                     DaydotProduct(String::from("Chai"), 1 ),
-                    DaydotProduct(String::from("Whipped Cream"), 1 ),
+                    DaydotProduct(String::from("Whipped Cream"), 1),
                 );
                 let cb_products = vec!(
                     DaydotProduct(String::from("Refresher Base"), 3),
@@ -600,3 +593,16 @@ pub fn Checkbox(data:&CheckboxData) -> Html {
         </a>
     }
 }
+
+// #[derive(Properties, PartialEq)]
+// pub struct ModalData {
+//     pub title:String,
+//     pub children: Children,
+// }
+
+// #[function_component]
+// pub fn Modal(data:&ModalData) -> Html{
+
+//     html! {
+//     }
+// }

@@ -36,6 +36,8 @@ fn Star() -> Html {
     let cards = state.cards.clone();
     let p_cards = state.priority_cards.clone();
     html! {
+        <>
+        <div id="modal_host"></div>
         <div class="container">
             <h1 class="title">{ "Star" }<span class="material-symbols-outlined star">{ "star" }</span></h1>
             <p class="subtitle">{ "Barista Helper" }</p>
@@ -56,6 +58,7 @@ fn Star() -> Html {
             }
             </div>
         </div>
+        </>
     }
 }
 

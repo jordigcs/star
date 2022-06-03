@@ -6,14 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-wasm-timer = "0.2.5"
-yew = { git = "https://github.com/yewstack/yew/", features = ["csr"] }
-yew-hooks = "0.1"
 log = "0.4.6"
 wasm-logger = "0.2.0"
-gloo-timers = "0.2.4"
+yew = { git = "https://github.com/yewstack/yew/", features = ["csr"] }
+yew-hooks = "0.1"
 serde = "1.0.137"
 chrono = { version = "0.4", features = ["wasmbind"] }
+wasm-timer = "0.2.5"
+gloo-timers = "0.2.4"
 wee_alloc = "0.4"
 
 [dependencies.web-sys]
