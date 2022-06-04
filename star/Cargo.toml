@@ -8,12 +8,13 @@ edition = "2021"
 [dependencies]
 log = "0.4.6"
 wasm-logger = "0.2.0"
+wasm-bindgen = "0.2.8"
 yew = { git = "https://github.com/yewstack/yew/", features = ["csr"] }
 yew-hooks = "0.1"
 serde = "1.0.137"
-chrono = { version = "0.4", features = ["wasmbind"] }
+chrono = { version = "0.4", features = ["wasmbind", "serde"] }
 wasm-timer = "0.2.5"
-gloo-timers = "0.2.4"
+gloo = "0.7.0"
 wee_alloc = "0.4"
 
 [dependencies.web-sys]

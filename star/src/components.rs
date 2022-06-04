@@ -1,21 +1,21 @@
 use std::{cell::Cell};
 
 use chrono::{Date, Local, Datelike, Weekday, Duration, Timelike};
+use gloo::storage::{LocalStorage, Storage};
 use serde::{Serialize, Deserialize};
-use web_sys::{HtmlAudioElement, HtmlInputElement, Storage};
+
+use web_sys::{HtmlAudioElement, HtmlInputElement, window};
 use yew::{prelude::*};
 
 
 
-use crate::state::{ TimerData, TimerAction };
+use crate::{state::{ TimerData, TimerAction, Tasks }, storage::StorableData};
 
 #[function_component]
 pub fn Timer(data:&TimerData) -> Html {
     log::warn!("Render");
-    if data.time_left.get() < 0 {
-        if data.timer_sound.paused() {
-            data.timer_sound.play();
-        }
+    if data.time_left.get() < 0 && data.timer_sound.paused() {
+        data.timer_sound.play();
     }
     html! {
         <>
@@ -27,24 +27,14 @@ pub fn Timer(data:&TimerData) -> Html {
 }
 
 
-#[derive(PartialEq)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum CsState {
     NotStarted,
     Started,
     Flex
 }
 
-#[derive(Properties, PartialEq, Serialize, Deserialize)]
-pub struct CsData {
-    #[serde(skip)]
-    pub destroy_card_callback:Callback<usize>,
-    #[prop_or_default]
-    pub cycle_started:bool,
-    #[prop_or(1800)]
-    pub current_cycle_length:u16,
-}
-
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone, Serialize, Deserialize, Debug)]
 pub enum CoffeeRoast {
     Pike,
     Blonde,
@@ -67,7 +57,8 @@ impl CoffeeRoast {
     }
 }
 
-pub struct CoffeesToBrew(CoffeeRoast, Option<CoffeeRoast>);
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
+pub struct CoffeesToBrew(CoffeeRoast, Option<CoffeeRoast>); // (Last Brewed, Optional: Next to brew)
 
 impl CoffeesToBrew {
     pub fn to_string(&self) -> String {
@@ -96,22 +87,50 @@ impl CoffeesToBrew {
     }
 }
 
+#[derive(Properties, Clone, PartialEq, Serialize, Deserialize, Debug)]
+pub struct CsData {
+    pub cycle_state:CsState,
+    pub current_cycle_time:i32,
+    pub start_time_value: i32,
+    pub last_brewed: CoffeesToBrew,
+}
+
+impl StorableData for CsData {
+    fn load() -> CsData {
+        if let Ok(stored_data) = LocalStorage::get("cs_cycle") { log::debug!("{:?}", stored_data); stored_data } else { 
+            CsData {
+                cycle_state: CsState::NotStarted,
+                current_cycle_time: 1800,
+                start_time_value: 1800,
+                last_brewed: CoffeesToBrew(CoffeeRoast::Pike, None),
+            }
+        }
+    }
+
+    fn save(self) -> Self {
+        let data = self.clone();
+        LocalStorage::set("cs_cycle", data);
+        self
+    }
+}
+
 #[function_component]
-pub fn CsCycle() -> Html {
+pub fn CsCycle(data:&CsData) -> Html {
     let state = use_state(|| {   
-        CsState::NotStarted
+        data.cycle_state
     });
 
-    let last_brewed = use_state(|| CoffeesToBrew(CoffeeRoast::Pike, 
-        if chrono::Local::now().hour() < 11 { Some(CoffeeRoast::Blonde) } else { None }));
+    //CoffeesToBrew(CoffeeRoast::Pike, 
+    //    if chrono::Local::now().hour() < 11 { Some(CoffeeRoast::Blonde) } else { None }
+    let last_brewed = use_state(|| data.last_brewed);
 
     //Timer initialization
-    let start_time_value = use_state(|| 1800);
+    let start_time_value = use_state(|| data.start_time_value);
     let start_time_input_str = use_state(|| TimerData::format_time_left(*start_time_value));
     let start_time_input_ref = use_node_ref();
     let timer_data = TimerData {
-        time_left:use_state(|| Cell::new(2)),
-        running: false,
+        time_left:use_state(|| Cell::new(data.current_cycle_time)),
+        running: data.cycle_state == CsState::Started,
         callback:Callback::noop(),
         timer_interval_id: -1,
         timer_sound: HtmlAudioElement::new_with_src("timer_expired.wav").expect("Could not load timer sound."),
@@ -134,8 +153,10 @@ pub fn CsCycle() -> Html {
     let stop_cycle = {
         let state = state.clone();
         let timer_state = timer_state.clone();
+        let start_time_value = start_time_value.clone();
         Callback::from(move |_| {
             timer_state.dispatch(TimerAction::Stop);
+            (*timer_state.time_left).set(*start_time_value);
             state.set(CsState::NotStarted);
         })
     };
@@ -148,7 +169,7 @@ pub fn CsCycle() -> Html {
         Callback::from(move |_| {
             let input = start_time_input_ref.cast::<HtmlInputElement>().expect("Timer not initialized correctly.");
             let mut formatted_input_value:String = String::new();
-            for c in input.value().chars().into_iter() {
+            for c in input.value().chars() {
                 if !c.is_numeric() && c != ':' {
                     continue;
                 }
@@ -164,9 +185,47 @@ pub fn CsCycle() -> Html {
         })
     };
     let next_to_brew = (*last_brewed).get_next();
+    let save_data = {
+        let timer_state = timer_state.clone();
+        let state = state.clone();
+        let last_brewed = last_brewed.clone();
+        let start_time = start_time_value.clone();
+        Callback::from(move |_| {
+            log::info!("{:?}", *state);
+            let mut d = CsData {
+                current_cycle_time: (*timer_state.time_left).get(),
+                cycle_state: CsState::NotStarted,
+                last_brewed: (*last_brewed),
+                start_time_value: *start_time,
+            };
+            if d.start_time_value != d.current_cycle_time {
+                d.cycle_state = CsState::Started;
+            }
+            log::error!("{:?}", d);
+            d.save();
+        })
+    };
+    // Initialize save data callback
+    {
+        let timer_state = timer_state.clone();
+        let started = data.cycle_state == CsState::Started;
+        let save_data = save_data;
+        let destructor_save = save_data.clone();
+        use_effect_with_deps(move |_| {
+            if started {
+                println!("Closure");
+                timer_state.dispatch(TimerAction::Start(timer_state.time_left.get()));
+            }
+            let listener = gloo::events::EventListener::new(&window().unwrap(), "beforeunload", move |_| save_data.emit(()));
+            move || {
+                drop(listener);
+                destructor_save.emit(());
+            }
+        }, ());
+    }
     html! {
         <>
-            <div class="timer">
+            <div class="timer" >
             if *state == CsState::NotStarted {
                 <input ref={ start_time_input_ref } onchange={ start_time_changed } value={ (*start_time_input_str).clone() } class="timer_input" size="1" type="text" />
                 <button class="button" onclick={start_cycle}><span class="material-symbols-outlined icon">{ "update" }</span>{ " Start Cycle" }</button>
@@ -193,7 +252,7 @@ pub fn CsCycle() -> Html {
                 }
             } else {
                 <p><b>{ "Tasks" }</b></p>
-                <Checkbox text="Brew Coffee" default_value={true} />
+                <Checkbox text="Brew Coffee" initial_value={true} />
                 <Checkbox text="Cafe Check"/>
                 <Checkbox text="Restock"/>
                 <Checkbox text="Cycle Task"/>
@@ -277,7 +336,7 @@ pub fn Daydots(data:&DaydotCardData) -> Html {
                 html! {
                     <div class="date_card">
                     <h3>{ product.0.clone() }</h3>
-                    <Daydot date={ today.clone() + Duration::days(product.1.into())} />
+                    <Daydot date={ today + Duration::days(product.1.into())} />
                     </div>
                 }
             );
@@ -291,7 +350,7 @@ pub fn Daydots(data:&DaydotCardData) -> Html {
                 html! {
                     <div class="date_card">
                     <h3>{ product.0.clone() }</h3>
-                    <Daydot date={ today.clone() + Duration::days(product.1.into())} />
+                    <Daydot date={ today + Duration::days(product.1.into())} />
                     </div>
                 }
             );
@@ -316,7 +375,7 @@ pub fn Daydots(data:&DaydotCardData) -> Html {
         })
     };
 
-    let search_results = use_state(|| Vec::<Html>::new());
+    let search_results = use_state(Vec::<Html>::new);
     let search_results_ref = use_node_ref();
     let search_results_changed = {
         let search_results_ref = search_results_ref.clone();
@@ -325,7 +384,7 @@ pub fn Daydots(data:&DaydotCardData) -> Html {
         let c = data.cbs_products.clone();
         Callback::<InputEvent>::from(move |_| {
             let search = search_results_ref.cast::<HtmlInputElement>().expect("Search not found.");
-            if search.value().len() > 0 {
+            if !search.value().is_empty() {
                 let mut joined_vec = h.clone();
                 joined_vec.append(&mut c.clone());
 
@@ -333,7 +392,7 @@ pub fn Daydots(data:&DaydotCardData) -> Html {
 
                 for p in joined_vec {
                     let p_name = p.0.to_lowercase();
-                    let split = p_name.split(" ");
+                    let split = p_name.split(' ');
                     for name in split {
                         if name.starts_with(&search.value().to_lowercase()) {
                             let mut product_already_exists:bool = false;
@@ -358,7 +417,7 @@ pub fn Daydots(data:&DaydotCardData) -> Html {
                         html! {
                             <div class="date_card">
                             <h3>{ product.0.clone() }</h3>
-                            <Daydot date={ today.clone() + Duration::days(product.1.into())} />
+                            <Daydot date={ today + Duration::days(product.1.into())} />
                             </div>
                         }
                     );
@@ -375,7 +434,7 @@ pub fn Daydots(data:&DaydotCardData) -> Html {
         <h2 class="title_white">{ "Daydots" }</h2>
         <p><b>{ "Today is "}</b><Daydot date={chrono::Local::today()} /></p>
         <span class="material-symbols-outlined" style="font-size:1.5rem; display:inline;">{ "search" }</span><input ref={search_results_ref} oninput={search_results_changed} class="text_input" size="1" type="text" placeholder="Search" />
-        if (*search_results).len() > 0 {
+        if !(*search_results).is_empty() {
             <h3 class="" >{"Search Results"}</h3>
             <div class="date_grid">
             {
@@ -404,26 +463,63 @@ pub fn Daydots(data:&DaydotCardData) -> Html {
     }
 }
 
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[function_component]
+pub fn DailyTasks() -> Html {
+    let tasks:UseStateHandle<Tasks> = use_state(Tasks::load);
+    {
+        let tasks = tasks.clone();
+        let destructor_tasks_ref = tasks.clone();
+        use_effect_with_deps(move |_| {
+            let listener = gloo::events::EventListener::new(&window().unwrap(), "beforeunload", move |_| { (*tasks).clone().save(); });
+            move || {
+                drop(listener);
+                (*destructor_tasks_ref).clone().save();
+            }
+        }, ());
+    }
+    html! {
+        {
+            for (*tasks).tasks.iter().map(|daypart_tasks| {
+                html! {
+                    <>
+                        <h1>{ daypart_tasks.daypart.to_string() }</h1>
+                        {
+                            for daypart_tasks.daypart_tasks.iter().map(|task| {
+                                html! {
+                                    <Checkbox text={ task.task.clone() } initial_value={ task.completed } />
+                                }
+                            })
+                        }
+                    </>
+                }
+            })
+        }
+    }
+}
+
+#[derive(PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum CardType {
     StartNewTask,
-    Info,
-    AboutUs,
     Daydots,
-    CsCycle
+    CsCycle,
+    Tasks,
 }
 
 
-#[derive(Properties, PartialEq, Clone)]
+#[derive(Properties, PartialEq, Clone, Serialize, Deserialize, Debug)]
 pub struct CardData {
     #[prop_or(CardType::StartNewTask)]
     pub card_type:CardType,
     #[prop_or_default]
     pub is_priority:bool,
     pub index:usize,
+    #[serde(skip)]
     pub create_card:Callback<CardType>,
+    #[serde(skip)]
     pub add_priority_card:Callback<CardType>,
+    #[serde(skip)]
     pub destroy_priority:Callback<usize>,
+    #[serde(skip)]
     pub destroy_card:Callback<usize>,
 }
 
@@ -442,8 +538,8 @@ impl CardData {
         match self.card_type {
             CardType::StartNewTask => "What can I help you with today?".to_string(),
             CardType::CsCycle => String::new(),
-            CardType::Info => "Information".to_string(),
             CardType::Daydots => String::new(),
+            CardType::Tasks => "Tasks".to_string(),
             _ => "Invalid Card".to_string(),
         }
     }
@@ -463,6 +559,12 @@ impl CardData {
                         set_priority_card.emit(CardType::Daydots);
                     })
                 };
+                let create_tasks_card = {
+                    let create_card = self.add_priority_card.clone();
+                    Callback::from(move |_| {
+                        create_card.emit(CardType::Tasks);
+                    })
+                };
 
                 html! {
                     <div class="card-multioption">
@@ -474,17 +576,16 @@ impl CardData {
                     <span class="icon material-symbols-outlined">{ "event" }</span>
                     { "Daydot some backups" }
                     </a>
+                    <a class="card-multioption_button" onclick={ create_tasks_card }>
+                    <span class="icon material-symbols-outlined">{ "checklist" }</span>
+                    { "View my tasks for today" }
+                    </a>
                     </div>
                 }
             },
-            CardType::Info => html! {
-                <img src="https://www.w3schools.com/tags/img_girl.jpg" />
-            },
-            CardType::AboutUs => html! {
-                <p>{ "Made mainly as a side project, Star is a tool to help Starbucks baristas with their daily tasks. Made by a barista, for baristas. Star is dedicated to improving the partner experience."}</p>
-            },
             CardType::CsCycle => {
-                html! { <CsCycle/> }
+                let data = CsData::load();
+                html! { <CsCycle ..data /> }
             },
             CardType::Daydots => {
                 let hb_products = vec!(
@@ -510,6 +611,11 @@ impl CardData {
                     <Daydots hb_products={hb_products} cbs_products={cb_products} />
                 }
             }
+            CardType::Tasks => {
+                html! {
+                    <DailyTasks />
+                }
+            }
             _ => {
                 html! {
                     <></>
@@ -522,14 +628,14 @@ impl CardData {
 #[function_component]
 pub fn Card(data:&CardData) -> Html {
     let destroy_card = {
-        let index = data.index.clone();
+        let index = data.index;
         let destroy_card = data.destroy_card.clone();
         Callback::from(move |_| {
             destroy_card.emit(index);
         })
     };
     let destroy_priority = {
-        let index = data.index.clone();
+        let index = data.index;
         let destroy_priority = data.destroy_priority.clone();
         Callback::from(move |_| {
             destroy_priority.emit(index);
@@ -560,19 +666,22 @@ pub struct CheckboxData {
     #[prop_or("Checkbox".to_string())]
     pub text:String,
     #[prop_or_default]
-    pub default_value:bool,
+    pub initial_value:bool,
     #[prop_or(true)]
     pub is_list_item:bool,
+    #[prop_or(Callback::<bool>::noop())]
+    pub callback:Callback<bool>
 }
 
 #[function_component]
 pub fn Checkbox(data:&CheckboxData) -> Html {
-    let state = use_state(|| data.default_value);
-
+    let state = use_state(|| data.initial_value);
     let onclick = {
         let state = state.clone();
+        let callback = data.callback.clone();
         Callback::from(move |_| {
-            state.set(!*state)
+            state.set(!*state);
+            callback.emit(*state);
         })
     };
     html! {

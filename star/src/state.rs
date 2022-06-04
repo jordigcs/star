@@ -1,8 +1,11 @@
 use std::{rc::Rc, collections::VecDeque, cell::Cell};
 
-use serde::Serialize;
+use chrono::{DateTime, Utc};
+use gloo::storage::{Storage, LocalStorage, errors::StorageError};
+use serde::{Serialize, Deserialize};
+use storage::StorableData;
 use web_sys::{window, HtmlAudioElement};
-use gloo_timers::callback::Interval;
+use gloo::timers::callback::Interval;
 use wasm_timer::Instant;
 use yew::prelude::*;
 
@@ -23,11 +26,34 @@ pub struct StarData {
     pub cards:VecDeque<CardData>,
 }
 
-impl StarData {
-    pub fn new() -> Self {
-        let cards = [
-            CardData::new(CardType::StartNewTask)];
-        StarData { priority_cards:VecDeque::new(), cards:VecDeque::from(cards) }
+impl StorableData for StarData {
+    fn load() -> Self {
+        let mut priority_cards:Option<VecDeque<CardData>> = None;
+        let mut cards:Option<VecDeque<CardData>> = None;
+
+        let cards_from_storage:Result<VecDeque<CardData>, gloo::storage::errors::StorageError> = LocalStorage::get("cards");
+        if let Ok(stored_cards) = cards_from_storage {
+            cards = Some(stored_cards)
+        }
+
+        let priority_cards_from_storage:Result<VecDeque<CardData>, gloo::storage::errors::StorageError> = LocalStorage::get("priority_cards");
+        match priority_cards_from_storage {
+            Ok(stored_cards) => priority_cards = Some(stored_cards),
+            _ => {}
+        }
+        
+
+        StarData { priority_cards: priority_cards.unwrap_or_default(), cards: cards.unwrap_or_else(|| VecDeque::from([CardData::new(CardType::StartNewTask)])) }
+    }
+
+    fn save(self) -> Self {
+        if let Err(err) = LocalStorage::set("cards", self.cards.clone()) {
+            log::error!("{:?}", err);
+        }
+        if let Err(err) = LocalStorage::set("priority_cards", self.priority_cards.clone()) {
+            log::error!("{:?}", err);
+        }
+        self
     }
 }
 
@@ -51,7 +77,7 @@ impl Reducible for StarData {
                 StarData {
                     priority_cards: self.priority_cards.clone(),
                     cards,
-                }.into()
+                }.save().into()
             },
             StarAction::AddPriorityCard(card_type) => {
                 let mut priority_cards = self.priority_cards.clone();
@@ -71,27 +97,27 @@ impl Reducible for StarData {
                 StarData {
                     priority_cards,
                     cards: self.cards.clone(),
-                }.into()
+                }.save().into()
             },
             StarAction::DestroyPriorityCard(index) => {
                 let mut priority_cards = self.priority_cards.clone();
-                if let Some(_) = priority_cards.get(index) {
+                if priority_cards.get(index).is_some() {
                     priority_cards.remove(index);
                 }
                 StarData {
                     priority_cards,
                     cards: self.cards.clone(),
-                }.into()
+                }.save().into()
             },
             StarAction::DestroyCard(index) => {
                 let mut cards = self.cards.clone();
-                if let Some(_) = cards.get(index) {
+                if cards.get(index).is_some() {
                     cards.remove(index);
                 }
                 StarData {
                     priority_cards: self.priority_cards.clone(),
                     cards,
-                }.into()
+                }.save().into()
             },
             _ => {
                 StarData {
@@ -102,6 +128,115 @@ impl Reducible for StarData {
         }
     }
 }
+
+// Task list
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct Task {
+    pub task: String,
+    pub completed: bool,
+}
+
+impl Task {
+    pub fn new(task:&'static str) -> Task {
+        Task { task: String::from(task), completed: false }
+    }
+    pub fn complete(&mut self) {
+        self.completed = true;
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Daypart {
+    Opening,
+    Mid,
+    Closing,
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct DaypartTasks {
+    pub daypart:Daypart,
+    pub daypart_tasks: Vec<Task>,
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct Tasks {
+    pub tasks: [DaypartTasks; 3],
+    pub date_of_use: DateTime<Utc>,
+}
+
+impl Default for Tasks {
+    fn default() -> Self {
+        Tasks {
+            tasks: [
+                DaypartTasks { daypart: Daypart::Opening, daypart_tasks: vec![] },
+                DaypartTasks { daypart: Daypart::Mid, daypart_tasks: vec![
+                        Task::new("Floors"),
+                        Task::new("Ovens"),
+                        Task::new("18 Hour Pull"),
+                        Task::new("Safe Count"),
+                        Task::new("Mid Temps"),
+                    ]
+                },
+                DaypartTasks { daypart: Daypart::Closing, daypart_tasks: vec![
+                        Task::new("Bar Syrups"),
+                        Task::new("Bar Breakdowns"),
+                        Task::new("Closing Dishes"),
+                        Task::new("Backups"),
+                        Task::new("Throw out expiring backups"),
+                        Task::new("Bag & donate expiring food"),
+                        Task::new("Temps"),
+                        Task::new("Tills"),
+                    ]
+                }
+            ],
+            date_of_use: Utc::now(),
+        }
+    }
+}
+
+impl StorableData for Tasks {
+    fn load() -> Self {
+        let storage:Result<Tasks, StorageError> = LocalStorage::get("daily_tasks");
+        match storage {
+            Ok(tasks) => {
+                if tasks.date_of_use.date() == Utc::today() {
+                    tasks
+                }
+                else {
+                    Self::default()
+                }
+            },
+            Err(err) => {
+                log::error!("{:?}", err);
+                Self::default()
+            }
+        }
+    }
+
+    fn save(self) -> Self {
+        LocalStorage::set("daily_tasks", self.clone());
+        self
+    }
+}
+
+impl Daypart {
+    pub fn to_string(self) -> &'static str {
+        match self {
+            Daypart::Opening => "Opening",
+            Daypart::Mid => "Mid-day",
+            Daypart::Closing => "Closing",
+        }
+    }
+
+    pub fn get_time_period(&self) -> &'static str {
+        match self {
+            Daypart::Opening => "Open-12pm",
+            Daypart::Mid => "12-4pm",
+            Daypart::Closing => "4pm-Close",
+        }
+    }
+}
+
 
 // Timer
 pub enum TimerAction {
@@ -188,7 +323,7 @@ impl Reducible for TimerData {
             TimerAction::Start(st) => {
                 let mut last_time = Instant::now();
                 let time_left = self.time_left.clone();
-                (*time_left).set((st - 1).into());
+                (*time_left).set(st - 1);
                 let timer_interval = Interval::new(350, move || {
                     if last_time.elapsed().as_secs() >= 1 {
                         (*time_left).set((*time_left).get() - last_time.elapsed().as_secs() as i32);

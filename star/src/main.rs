@@ -2,17 +2,19 @@ use yew::prelude::*;
 
 mod state;
 mod components;
+mod storage;
 use state::StarData;
 use state::StarAction;
 use components::*;
+
+use crate::storage::StorableData;
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[function_component]
 fn Star() -> Html {
-    let data = StarData::new();
-    let state = use_reducer(|| data);
+    let state = use_reducer(StarData::load);
     let create_card = {
         let state = state.clone();
         Callback::from(move |card_type:CardType| state.dispatch(StarAction::AddCard(card_type)))
